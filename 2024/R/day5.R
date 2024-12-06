@@ -159,31 +159,68 @@ check_rules2 <- function(updates, rules_df){
 incorrect_test <- check_rules2(test_updates, rules_test)$incorrect_updates
 incorrect_input <- check_rules2(input_updates, rules_input)$incorrect_updates
 
-
 # create function to fix the incorrect updates
-fix_incorrect <- function(updates, rules_df){
-
+fix_incorrect <- function(updates, rules_df, max_iterations = 100) {
   corrected_updates <- list()
   middle_values <- c()
-  # create progress bar
-  pb = txtProgressBar(min = 0, max = length(updates), initial = 0)
 
-  for(l in 1:length(updates)){
-    setTxtProgressBar(pb,l) # update progress bar
-    if(is.null(updates[[l]])){
+  # Create progress bar
+  pb <- txtProgressBar(min = 0, max = length(updates), initial = 0)
+
+  for (l in 1:length(updates)) {
+    setTxtProgressBar(pb, l) # Update progress bar
+
+    if (is.null(updates[[l]])) {
       corrected_updates[[l]] <- NULL
       middle_values[l] <- 0
       next
-    } else{
+    } else {
       tmp <- updates[[l]]
-      while(check_rules(list(tmp), rules_df)$num_correct == 0){
-        tmp <- sample(updates[[l]])
+      iterations <- 0
+
+      # Keep reordering until all rules are satisfied
+      while (TRUE) {
+        rules_check <- check_rules(list(tmp), rules_df)
+        if (rules_check$num_correct == 1) {
+          break
+        }
+
+        # Fix broken rules one by one
+        for (r in 1:nrow(rules_df)) {
+          page1 <- rules_df$page1[r]
+          page2 <- rules_df$page2[r]
+
+          # Find indices of page1 and page2 in tmp
+          idx1 <- match(page1, tmp)
+          idx2 <- match(page2, tmp)
+
+          # Skip if either page1 or page2 is missing
+          if (is.na(idx1) || is.na(idx2)) {
+            next
+          }
+
+          # If page1 appears after page2, swap their positions
+          if (idx1 > idx2) {
+            tmp[c(idx1, idx2)] <- tmp[c(idx2, idx1)]
+          }
+        }
+
+        # Prevent infinite loops
+        iterations <- iterations + 1
+        if (iterations >= max_iterations) {
+          warning(paste("Max iterations reached for index", l))
+          break
+        }
       }
+
+      # Store the corrected update
       corrected_updates[[l]] <- tmp
-      middle_values[l] <- tmp[ceiling(length(tmp)/2)]
+      middle_values[l] <- tmp[ceiling(length(tmp) / 2)]
     }
   }
-  close(pb) # close progress bar
+
+  close(pb) # Close progress bar
+
   return(sum(middle_values))
 }
 
